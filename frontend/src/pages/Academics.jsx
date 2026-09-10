@@ -1,67 +1,105 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
+import { schoolsAPI } from '../api/schools';
 
 const Academics = () => {
-  const programs = [
-    {
-      level: 'Junior Secondary (Forms 1-2)',
-      subjects: ['Mathematics', 'English', 'Kiswahili', 'Science', 'Social Studies', 'Religious Education', 'Creative Arts'],
-      description: 'Foundation program building essential skills and knowledge across all core subjects.'
-    },
-    {
-      level: 'Senior Secondary (Forms 3-4)',
-      subjects: ['Mathematics', 'English', 'Kiswahili', 'Biology', 'Chemistry', 'Physics', 'History', 'Geography', 'Business Studies'],
-      description: 'Comprehensive preparation for national examinations and future career paths.'
-    },
-    {
-      level: 'Advanced Level (Forms 5-6)',
-      subjects: ['Pure Mathematics', 'Applied Mathematics', 'Biology', 'Chemistry', 'Physics', 'History', 'Geography', 'Economics'],
-      description: 'Specialized program preparing students for university and professional careers.'
-    }
-  ];
+  const [programs, setPrograms] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    const fetchPrograms = async () => {
+      try {
+        const response = await schoolsAPI.getAcademics();
+        const data = response.data.results || response.data;
+        setPrograms(Array.isArray(data) ? data : []);
+        setLoading(false);
+      } catch (err) {
+        console.error('Error fetching academics:', err);
+        setError('Failed to load academic programs.');
+        setLoading(false);
+      }
+    };
+    fetchPrograms();
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="min-h-[60vh] flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-16 h-16 border-4 border-primary-600 border-t-transparent rounded-full animate-spin mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-[60vh] flex items-center justify-center">
+        <div className="text-center text-red-600"><p>{error}</p></div>
+      </div>
+    );
+  }
 
   return (
     <div>
       <section className="bg-gray-50 py-16">
         <div className="container-custom">
-          <h1 className="text-4xl font-bold text-center mb-4">Academics</h1>
+          <h1 className="text-4xl md:text-5xl font-bold text-center mb-4">Academics</h1>
           <p className="text-lg text-gray-600 text-center max-w-3xl mx-auto">
-            Explore our comprehensive academic programs designed to nurture excellence and foster lifelong learning.
+            Explore our comprehensive academic programs designed to nurture excellence.
           </p>
         </div>
       </section>
 
       <section className="py-16">
         <div className="container-custom">
-          <div className="grid grid-cols-1 gap-8">
-            {programs.map((program, index) => (
-              <div key={index} className="card p-8">
-                <h2 className="text-2xl font-bold text-primary-600 mb-2">{program.level}</h2>
-                <p className="text-gray-600 mb-4">{program.description}</p>
-                <div>
-                  <h3 className="font-semibold mb-2">Core Subjects:</h3>
-                  <div className="flex flex-wrap gap-2">
-                    {program.subjects.map((subject, idx) => (
-                      <span key={idx} className="bg-primary-50 text-primary-700 px-3 py-1 rounded-full text-sm">
-                        {subject}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
+          {programs.length === 0 ? (
+            <div className="text-center py-12">
+              <p className="text-gray-500">No academic programs added yet.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 gap-8">
+              {programs.map((program) => {
+                const subjects = program.subjects
+                  ? program.subjects.split('\n').filter(s => s.trim())
+                  : [];
 
-      <section className="bg-primary-50 py-16">
-        <div className="container-custom text-center">
-          <h2 className="text-3xl font-bold mb-4">Ready to Enroll?</h2>
-          <p className="text-lg text-gray-600 mb-8 max-w-2xl mx-auto">
-            Join our academic community and give your child the best education possible.
-          </p>
-          <a href="/contact" className="btn-primary inline-block">
-            Contact Us
-          </a>
+                return (
+                  <div key={program.id} className="bg-white rounded-2xl p-8 shadow-md hover:shadow-xl transition-all">
+                    <div className="flex flex-col md:flex-row gap-8">
+                      {program.image && (
+                        <div className="md:w-1/3">
+                          <img
+                            src={program.image.startsWith('http') ? program.image : `http://localhost:8000${program.image}`}
+                            alt={program.name}
+                            className="w-full h-48 object-cover rounded-xl"
+                          />
+                        </div>
+                      )}
+                      <div className={program.image ? 'md:w-2/3' : 'w-full'}>
+                        <h2 className="text-2xl font-bold text-primary-600 mb-2">{program.name}</h2>
+                        <p className="text-sm text-gray-500 mb-3">{program.level_display || program.level}</p>
+                        <p className="text-gray-600 mb-4 leading-relaxed">{program.description}</p>
+                        {subjects.length > 0 && (
+                          <div>
+                            <h3 className="font-semibold mb-2 text-sm text-gray-700">Core Subjects:</h3>
+                            <div className="flex flex-wrap gap-2">
+                              {subjects.map((subject, idx) => (
+                                <span key={idx} className="bg-primary-50 text-primary-700 px-3 py-1 rounded-full text-xs">
+                                  {subject}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       </section>
     </div>

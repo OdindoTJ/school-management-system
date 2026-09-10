@@ -6,21 +6,18 @@ const Gallery = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [selectedCategory, setSelectedCategory] = useState('all');
-  const [categories, setCategories] = useState([]);
   const [selectedImage, setSelectedImage] = useState(null);
 
   useEffect(() => {
     const fetchGallery = async () => {
       try {
         const response = await schoolsAPI.getGallery();
-        const data = response.data;
-        setImages(data);
-        
-        // Extract unique categories
-        const uniqueCategories = ['all', ...new Set(data.map(item => item.category))];
-        setCategories(uniqueCategories);
+        // Handle paginated response
+        const data = response.data.results || response.data;
+        setImages(Array.isArray(data) ? data : []);
         setLoading(false);
       } catch (err) {
+        console.error('Error fetching gallery:', err);
         setError('Failed to load gallery images.');
         setLoading(false);
       }
@@ -28,6 +25,8 @@ const Gallery = () => {
     fetchGallery();
   }, []);
 
+  const categories = ['all', ...new Set(images.map(item => item.category))];
+  
   const filteredImages = selectedCategory === 'all' 
     ? images 
     : images.filter(img => img.category === selectedCategory);
@@ -55,7 +54,6 @@ const Gallery = () => {
 
   return (
     <div>
-      {/* Hero Section */}
       <section className="bg-gray-50 py-16">
         <div className="container-custom">
           <h1 className="text-4xl md:text-5xl font-bold text-center mb-4">Gallery</h1>
@@ -65,10 +63,8 @@ const Gallery = () => {
         </div>
       </section>
 
-      {/* Gallery Grid */}
       <section className="py-16">
         <div className="container-custom">
-          {/* Category Filter */}
           {categories.length > 1 && (
             <div className="flex flex-wrap gap-2 mb-8 justify-center">
               {categories.map((category) => (
@@ -100,7 +96,7 @@ const Gallery = () => {
                   onClick={() => setSelectedImage(image)}
                 >
                   <img
-                    src={`http://localhost:8000${image.image}`}
+                    src={image.image.startsWith('http') ? image.image : `http://localhost:8000${image.image}`}
                     alt={image.title}
                     className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
                   />
@@ -117,7 +113,6 @@ const Gallery = () => {
         </div>
       </section>
 
-      {/* Lightbox Modal */}
       {selectedImage && (
         <div
           className="fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-4"
@@ -125,7 +120,7 @@ const Gallery = () => {
         >
           <div className="max-w-4xl max-h-[90vh] relative" onClick={(e) => e.stopPropagation()}>
             <img
-              src={`http://localhost:8000${selectedImage.image}`}
+              src={selectedImage.image.startsWith('http') ? selectedImage.image : `http://localhost:8000${selectedImage.image}`}
               alt={selectedImage.title}
               className="max-w-full max-h-[80vh] object-contain rounded-lg"
             />

@@ -10,9 +10,12 @@ const Staff = () => {
     const fetchStaff = async () => {
       try {
         const response = await schoolsAPI.getLeadership();
-        setStaff(response.data);
+        // Handle paginated response
+        const data = response.data.results || response.data;
+        setStaff(Array.isArray(data) ? data : []);
         setLoading(false);
       } catch (err) {
+        console.error('Error fetching staff:', err);
         setError('Failed to load staff information.');
         setLoading(false);
       }
@@ -43,7 +46,6 @@ const Staff = () => {
 
   return (
     <div>
-      {/* Hero Section */}
       <section className="bg-gray-50 py-16">
         <div className="container-custom">
           <h1 className="text-4xl md:text-5xl font-bold text-center mb-4">Our Leadership</h1>
@@ -53,7 +55,6 @@ const Staff = () => {
         </div>
       </section>
 
-      {/* Staff Grid */}
       <section className="py-16">
         <div className="container-custom">
           {staff.length === 0 ? (
@@ -64,11 +65,10 @@ const Staff = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
               {staff.map((member) => (
                 <div key={member.id} className="bg-white rounded-2xl shadow-lg overflow-hidden hover:shadow-2xl transition-all hover:-translate-y-1">
-                  {/* Staff Photo */}
                   <div className="aspect-w-1 aspect-h-1 bg-gray-200">
                     {member.photo ? (
                       <img
-                        src={`http://localhost:8000${member.photo}`}
+                        src={member.photo.startsWith('http') ? member.photo : `http://localhost:8000${member.photo}`}
                         alt={member.name}
                         className="w-full h-64 object-cover"
                       />
@@ -80,8 +80,6 @@ const Staff = () => {
                       </div>
                     )}
                   </div>
-
-                  {/* Staff Info */}
                   <div className="p-6">
                     <h3 className="text-xl font-bold text-gray-900">{member.name}</h3>
                     <p className="text-primary-600 font-medium text-sm mb-2">{member.title}</p>

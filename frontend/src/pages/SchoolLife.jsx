@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { schoolsAPI } from '../api/schools';
 
-// SVG Icons for categories
 const CategoryIcons = {
   sports: (
     <svg className="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -35,9 +34,12 @@ const SchoolLife = () => {
     const fetchSchoolLife = async () => {
       try {
         const response = await schoolsAPI.getSchoolLifeCategories();
-        setCategories(response.data);
+        // Handle paginated response
+        const data = response.data.results || response.data;
+        setCategories(Array.isArray(data) ? data : []);
         setLoading(false);
       } catch (err) {
+        console.error('Error fetching school life:', err);
         setError('Failed to load school life information.');
         setLoading(false);
       }
@@ -68,7 +70,6 @@ const SchoolLife = () => {
 
   return (
     <div>
-      {/* Hero Section */}
       <section className="bg-gray-50 py-16">
         <div className="container-custom">
           <h1 className="text-4xl md:text-5xl font-bold text-center mb-4">School Life</h1>
@@ -78,7 +79,6 @@ const SchoolLife = () => {
         </div>
       </section>
 
-      {/* Categories and Items */}
       <section className="py-16">
         <div className="container-custom">
           {categories.length === 0 ? (
@@ -89,7 +89,6 @@ const SchoolLife = () => {
             <div className="space-y-16">
               {categories.map((category) => (
                 <div key={category.id}>
-                  {/* Category Header */}
                   <div className="flex items-center gap-4 mb-6">
                     <div className="text-primary-600">
                       {CategoryIcons[category.category] || CategoryIcons.facilities}
@@ -102,7 +101,6 @@ const SchoolLife = () => {
                     </div>
                   </div>
 
-                  {/* Items Grid */}
                   {category.items && category.items.length > 0 ? (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                       {category.items.map((item) => (
@@ -110,7 +108,7 @@ const SchoolLife = () => {
                           {item.image ? (
                             <div className="aspect-video bg-gray-200">
                               <img
-                                src={`http://localhost:8000${item.image}`}
+                                src={item.image.startsWith('http') ? item.image : `http://localhost:8000${item.image}`}
                                 alt={item.title}
                                 className="w-full h-full object-cover"
                               />

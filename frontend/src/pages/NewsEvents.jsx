@@ -15,10 +15,16 @@ const NewsEvents = () => {
           schoolsAPI.getNews(),
           schoolsAPI.getUpcomingEvents(),
         ]);
-        setNews(newsRes.data);
-        setEvents(eventsRes.data);
+        
+        // Handle paginated responses
+        const newsData = newsRes.data.results || newsRes.data;
+        const eventsData = eventsRes.data.results || eventsRes.data;
+        
+        setNews(Array.isArray(newsData) ? newsData : []);
+        setEvents(Array.isArray(eventsData) ? eventsData : []);
         setLoading(false);
       } catch (err) {
+        console.error('Error fetching news/events:', err);
         setError('Failed to load news and events.');
         setLoading(false);
       }
@@ -91,7 +97,6 @@ const NewsEvents = () => {
       <section className="py-16">
         <div className="container-custom">
           {activeTab === 'news' ? (
-            // News Section
             news.length === 0 ? (
               <div className="text-center py-12">
                 <p className="text-gray-500">No news articles published yet.</p>
@@ -103,7 +108,7 @@ const NewsEvents = () => {
                     {item.image && (
                       <div className="aspect-video bg-gray-200">
                         <img
-                          src={`http://localhost:8000${item.image}`}
+                          src={item.image.startsWith('http') ? item.image : `http://localhost:8000${item.image}`}
                           alt={item.title}
                           className="w-full h-full object-cover"
                         />
@@ -126,7 +131,7 @@ const NewsEvents = () => {
                       </div>
                       <h3 className="text-xl font-bold text-gray-900 mb-2">{item.title}</h3>
                       <p className="text-gray-600 leading-relaxed">
-                        {item.excerpt || item.content.substring(0, 150) + '...'}
+                        {item.excerpt || (item.content && item.content.substring(0, 150) + '...')}
                       </p>
                     </div>
                   </div>
@@ -134,7 +139,6 @@ const NewsEvents = () => {
               </div>
             )
           ) : (
-            // Events Section
             events.length === 0 ? (
               <div className="text-center py-12">
                 <p className="text-gray-500">No upcoming events scheduled.</p>
