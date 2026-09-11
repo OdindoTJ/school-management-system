@@ -2,6 +2,7 @@
 Admin configuration for the schools app.
 """
 from django.contrib import admin
+from .models import Announcement
 from django.utils.html import format_html
 from .models import (
     SchoolInfo, AboutPage, AcademicProgram, Staff, Gallery,
@@ -122,3 +123,27 @@ class ContactMessageAdmin(admin.ModelAdmin):
     list_filter = ['is_read', 'replied', 'created_at']
     search_fields = ['name', 'email', 'subject', 'message']
     readonly_fields = ['created_at']
+
+@admin.register(Announcement)
+class AnnouncementAdmin(admin.ModelAdmin):
+    list_display = ['title', 'audience', 'priority', 'target_class', 'published_at', 'is_active']
+    list_filter = ['audience', 'priority', 'is_active', 'published_at']
+    search_fields = ['title', 'content']
+    autocomplete_fields = ['target_class']
+    readonly_fields = ['published_at', 'created_at', 'updated_at']
+    date_hierarchy = 'published_at'
+    fieldsets = (
+        ('Content', {
+            'fields': ('title', 'content')
+        }),
+        ('Targeting', {
+            'fields': ('audience', 'target_class', 'priority')
+        }),
+        ('Status', {
+            'fields': ('is_active', 'expires_at')
+        }),
+        ('Metadata', {
+            'fields': ('published_at', 'created_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+    )
