@@ -6,6 +6,7 @@ Configured to work with Supabase as the database and authentication provider.
 import os
 from pathlib import Path
 from dotenv import load_dotenv
+from datetime import timedelta
 
 # Load environment variables
 load_dotenv()
@@ -28,11 +29,20 @@ ALLOWED_HOSTS = [
 
 # CORS Configuration
 CORS_ALLOWED_ORIGINS = [
+    'http://localhost:5173',   # Public website
+    'http://localhost:5174',   # Student portal  ← 
     os.getenv('PUBLIC_FRONTEND_URL', 'http://localhost:5173'),
-    os.getenv('STAFF_FRONTEND_URL', 'http://localhost:5174'),
+    os.getenv('STUDENT_FRONTEND_URL', 'http://localhost:5174'),
 ]
 
 CORS_ALLOW_CREDENTIALS = True
+
+# Allow local network IPs (for testing from phone on same WiFi)
+CORS_ALLOWED_ORIGIN_REGEXES = [
+    r"^http://192\.168\.\d+\.\d+:\d+$",
+    r"^http://10\.\d+\.\d+\.\d+:\d+$",
+    r"^http://172\.(1[6-9]|2\d|3[01])\.\d+\.\d+:\d+$",
+]
 
 # Security settings
 if not DEBUG:
@@ -54,6 +64,7 @@ INSTALLED_APPS = [
     
     # Third-party apps
     'rest_framework',
+    'rest_framework_simplejwt',
     'corsheaders',
     'django_filters',
     'drf_spectacular',
@@ -142,6 +153,7 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # REST Framework Configuration
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
         'apps.accounts.authentication.SupabaseJWTAuthentication',
     ],
     'DEFAULT_PERMISSION_CLASSES': [
@@ -168,3 +180,26 @@ SUPABASE_URL = os.getenv('SUPABASE_URL')
 SUPABASE_KEY = os.getenv('SUPABASE_KEY')
 SUPABASE_JWT_SECRET = os.getenv('SUPABASE_JWT_SECRET')
 SUPABASE_SERVICE_ROLE_KEY = os.getenv('SUPABASE_SERVICE_ROLE_KEY')
+
+# JWT Settings
+SIMPLE_JWT = {
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),   # 1 hour
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=7),      # 1 week
+    'ROTATE_REFRESH_TOKENS': True,
+    'BLACKLIST_AFTER_ROTATION': False,
+    'UPDATE_LAST_LOGIN': True,
+
+    'ALGORITHM': 'HS256',
+    'SIGNING_KEY': SECRET_KEY,
+    'VERIFYING_KEY': None,
+    'AUDIENCE': None,
+    'ISSUER': None,
+
+    'AUTH_HEADER_TYPES': ('Bearer',),
+    'AUTH_HEADER_NAME': 'HTTP_AUTHORIZATION',
+    'USER_ID_FIELD': 'id',
+    'USER_ID_CLAIM': 'user_id',
+
+    'AUTH_TOKEN_CLASSES': ('rest_framework_simplejwt.tokens.AccessToken',),
+    'TOKEN_TYPE_CLAIM': 'token_type',
+}

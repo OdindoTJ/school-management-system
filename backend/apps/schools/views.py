@@ -1,6 +1,7 @@
 """
 Views for the schools app.
 """
+from django.db import models
 from rest_framework import viewsets, permissions, status
 from rest_framework.response import Response
 from rest_framework.decorators import action
@@ -8,6 +9,8 @@ from .models import (
     SchoolInfo, AboutPage, AcademicProgram, Staff, Gallery,
     SchoolLifeCategory, SchoolLifeItem, News, Event, ContactMessage
 )
+from .models import Announcement
+from .serializers import AnnouncementSerializer
 from .serializers import (
     SchoolInfoSerializer, AboutPageSerializer, AcademicProgramSerializer,
     StaffSerializer, GallerySerializer, SchoolLifeCategorySerializer,
@@ -126,3 +129,39 @@ class ContactMessageViewSet(viewsets.ModelViewSet):
             {'message': 'Your message has been sent successfully.'},
             status=status.HTTP_201_CREATED
         )
+
+class AnnouncementViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = Announcement.objects.filter(is_active=True)
+    serializer_class = AnnouncementSerializer
+    filterset_fields = ['audience', 'priority']
+
+    def get_queryset(self):
+        """Filter announcements based on the logged-in user."""
+        from django.utils import timezone
+        qs = Announcement.objects.filter(is_active=True)
+        # Filter out expired ones
+        qs = qs.filter(
+            models.Q(expires_at__isnull=True) | models.Q(expires_at__gte=timezone.now())
+        )
+
+        # If user is a student, filter by audience
+        user = self.request.user
+        if user.is_authenticated and hasattr(user, 'student_profile'):
+            student = user.student_profile
+            qs = qs.filter(
+                models.Q(audience__in=['all', 'students']) |
+                models.Q(audience='specific_class', target_class=student.school_class)
+            )
+        return qs
+class AcademicTermViewSet(viewsets.ReadOnlyModelViewSet):
+    """Public endpoint: list all academic terms for dropdowns."""
+    queryset = None  # Set in get_queryset
+    serializer_class = None
+
+    def get_queryset(self):
+        from apps.classes.models import AcademicTerm
+        return AcademicTerm.objects.all().order_by('-year', 'name')
+
+    def get_serializer_class(self):
+        from apps.classes.serializers import AcademicTermSerializer
+        return AcademicTermSerializer
