@@ -27,6 +27,7 @@ urlpatterns = [
     path('api/v1/accounts/', include('apps.accounts.urls')),
     path('api/v1/schools/', include('apps.schools.urls')),
     path('api/v1/students/', include('apps.students.urls')),
+    path('api/v1/parents/', include('apps.parents.urls')),
 ]
 
 if settings.DEBUG:

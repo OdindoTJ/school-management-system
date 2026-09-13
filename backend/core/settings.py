@@ -30,9 +30,11 @@ ALLOWED_HOSTS = [
 # CORS Configuration
 CORS_ALLOWED_ORIGINS = [
     'http://localhost:5173',   # Public website
-    'http://localhost:5174',   # Student portal  ← 
+    'http://localhost:5174',   # Student portal  
+    'http://localhost:5175',   # Parent portal 
     os.getenv('PUBLIC_FRONTEND_URL', 'http://localhost:5173'),
     os.getenv('STUDENT_FRONTEND_URL', 'http://localhost:5174'),
+    os.getenv('PARENT_FRONTEND_URL', 'http://localhost:5175'),
 ]
 
 CORS_ALLOW_CREDENTIALS = True
@@ -53,7 +55,6 @@ if not DEBUG:
     SECURE_CONTENT_TYPE_NOSNIFF = True
     X_FRAME_OPTIONS = 'DENY'
 
-# Application definition
 INSTALLED_APPS = [
     'django.contrib.admin',
     'django.contrib.auth',
@@ -61,14 +62,15 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    
+
     # Third-party apps
     'rest_framework',
     'rest_framework_simplejwt',
     'corsheaders',
     'django_filters',
     'drf_spectacular',
-    
+    'axes',  # Login lockout
+
     # Local apps
     'apps.accounts.apps.AccountsConfig',
     'apps.schools.apps.SchoolsConfig',
@@ -77,6 +79,7 @@ INSTALLED_APPS = [
     'apps.classes.apps.ClassesConfig',
     'apps.grades.apps.GradesConfig',
     'apps.fees.apps.FeesConfig',
+    'apps.parents.apps.ParentsConfig',
 ]
 
 MIDDLEWARE = [
@@ -88,6 +91,11 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'axes.middleware.AxesMiddleware', 
+]
+AUTHENTICATION_BACKENDS = [
+    'axes.backends.AxesStandaloneBackend',  # Must be first for django-axes to work
+    'django.contrib.auth.backends.ModelBackend',
 ]
 
 ROOT_URLCONF = 'core.urls'
@@ -165,6 +173,14 @@ REST_FRAMEWORK = {
     'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
     'PAGE_SIZE': 20,
+    'DEFAULT_THROTTLE_RATES': {
+        'parent_login': '10/min',
+        'parent_invitation_accept': '20/hour',
+        'parent_self_link': '10/hour',
+        'parent_invitation_validate': '60/hour',
+        'parent_password_change': '5/hour',
+        'parent_email_change': '3/hour',
+    },
 }
 
 # Spectacular settings
@@ -202,4 +218,42 @@ SIMPLE_JWT = {
 
     'AUTH_TOKEN_CLASSES': ('rest_framework_simplejwt.tokens.AccessToken',),
     'TOKEN_TYPE_CLAIM': 'token_type',
+}
+
+# ============================================================================
+# PASSWORD HASHING (Argon2 primary, PBKDF2 fallback)
+# ============================================================================
+PASSWORD_HASHERS = [
+    'django.contrib.auth.hashers.Argon2PasswordHasher',        # Primary
+    'django.contrib.auth.hashers.PBKDF2PasswordHasher',        # Fallback
+    'django.contrib.auth.hashers.PBKDF2SHA1PasswordHasher',
+    'django.contrib.auth.hashers.BCryptSHA256PasswordHasher',
+    'django.contrib.auth.hashers.ScryptPasswordHasher',
+]
+
+
+# ============================================================================
+# DJANGO-AXES (Login lockout)
+# ============================================================================
+AXES_FAILURE_LIMIT = 5                       # Lock after 5 failed attempts
+AXES_COOLOFF_TIME = 0.25                     # 15 minutes (fraction of hour)
+AXES_LOCKOUT_PARAMETERS = [['username', 'ip_address']]  # Lock on combo
+AXES_RESET_ON_SUCCESS = True                 # Reset counter on successful login
+AXES_ENABLE_ACCESS_FAILURE_LOG = True        # Log failed attempts
+AXES_LOCKOUT_CALLABLE = None                 # Use default lockout response
+
+# Axes doesn't play well with DRF — this makes it return a 403 for API requests
+AXES_ENABLE_ADMIN = True                     # Track admin logins too
+
+
+# ============================================================================
+# THROTTLING (per-endpoint rate limits)
+# ============================================================================
+REST_FRAMEWORK_THROTTLE_RATES = {
+    'parent_login': '10/min',           # 10 login attempts per minute per IP
+    'parent_invitation_accept': '20/hour',  # 20 invite accepts per hour per IP
+    'parent_self_link': '10/hour',      # 10 self-link attempts per hour per parent
+    'parent_invitation_validate': '60/hour',  # Token validation checks
+    'parent_password_change': '5/hour', # Password change attempts
+    'parent_email_change': '3/hour',    # Email change requests
 }
