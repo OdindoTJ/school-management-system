@@ -6,14 +6,14 @@ from rest_framework.routers import DefaultRouter
 
 from . import views
 
+app_name = 'staff'
+
 router = DefaultRouter()
 router.register(r'roles', views.StaffRoleViewSet, basename='staff-role')
 router.register(r'members', views.StaffViewSet, basename='staff-member')
 router.register(r'role-assignments', views.StaffRoleAssignmentViewSet, basename='staff-role-assignment')
 router.register(r'audit-logs', views.AuditLogViewSet, basename='audit-log')
 router.register(r'change-requests', views.ChangeRequestViewSet, basename='change-request')
-
-app_name = 'staff'
 
 urlpatterns = [
     # Auth

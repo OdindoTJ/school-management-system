@@ -4,6 +4,11 @@ import { AuthProvider } from './context/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import StaffLayout from './components/Layout/StaffLayout';
 
+import StaffList from './pages/staff/List';
+import StaffDetail from './pages/staff/Detail';
+import StaffNew from './pages/staff/New';
+import StaffEdit from './pages/staff/Edit';
+
 import Login from './pages/Login';
 import ChangePassword from './pages/ChangePassword';
 import Dashboard from './pages/Dashboard';
@@ -50,8 +55,10 @@ const App = () => {
             <Route path="/students/:id/edit" element={<StudentEdit />} />
 
             {/* Other routes (placeholders for now) */}
-            <Route path="/staff" element={<Placeholder title="Staff Members" />} />
-            <Route path="/staff/new" element={<Placeholder title="Add Staff" />} />
+            <Route path="/staff" element={<StaffList />} />
+            <Route path="/staff/new" element={<StaffNew />} />
+            <Route path="/staff/:id" element={<StaffDetail />} />
+            <Route path="/staff/:id/edit" element={<StaffEdit />} />
             <Route path="/classes" element={<Placeholder title="Classes" />} />
             <Route path="/subjects" element={<Placeholder title="Subjects" />} />
             <Route path="/parents" element={<Placeholder title="Parents" />} />

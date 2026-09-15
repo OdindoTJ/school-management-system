@@ -337,8 +337,7 @@ class StaffRoleViewSet(viewsets.ModelViewSet):
 
 class StaffViewSet(viewsets.ModelViewSet):
     """
-    CRUD for staff members. Admin-only for writes.
-    Read access: admin sees all; staff sees own profile via /auth/me/.
+    CRUD for staff members. Admin-only.
     """
     queryset = Staff.objects.all().select_related('user', 'bio').order_by('full_name')
     permission_classes = [permissions.IsAuthenticated]
@@ -347,63 +346,319 @@ class StaffViewSet(viewsets.ModelViewSet):
         staff = get_current_staff(request.user)
         return staff is not None and staff.is_admin
 
+    def _require_admin(self):
+        if not self._is_admin(self.request):
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied("Admin access required.")
+
     def get_serializer_class(self):
+        from .serializers import (
+            AdminStaffListSerializer,
+            AdminStaffDetailSerializer,
+            AdminStaffCreateSerializer,
+            AdminStaffUpdateSerializer,
+        )
         if self.action == 'list':
-            return StaffListSerializer
-        return StaffProfileSerializer
+            return AdminStaffListSerializer
+        if self.action == 'create':
+            return AdminStaffCreateSerializer
+        if self.action in ('update', 'partial_update'):
+            return AdminStaffUpdateSerializer
+        return AdminStaffDetailSerializer
 
     def get_queryset(self):
-        user = self.request.user
-        staff = get_current_staff(user)
-        if staff is None:
-            return Staff.objects.none()
-        if staff.is_admin:
-            return Staff.objects.all().select_related('user', 'bio').order_by('full_name')
-        # Non-admin: only own record
-        return Staff.objects.filter(id=staff.id)
+        qs = super().get_queryset()
 
+        search = self.request.query_params.get('search')
+        role_slug = self.request.query_params.get('role')
+        active = self.request.query_params.get('active')
+        employment = self.request.query_params.get('employment_type')
+
+        if search:
+            from django.db.models import Q
+            qs = qs.filter(
+                Q(staff_id__icontains=search) |
+                Q(full_name__icontains=search) |
+                Q(email__icontains=search) |
+                Q(phone__icontains=search)
+            )
+        if role_slug:
+            qs = qs.filter(
+                role_assignments__role__slug=role_slug,
+                role_assignments__is_active=True,
+            ).distinct()
+        if active in ('true', 'false'):
+            qs = qs.filter(is_active=(active == 'true'))
+        if employment:
+            qs = qs.filter(employment_type=employment)
+        return qs
+
+    # ---------- LIST ----------
+    def list(self, request, *args, **kwargs):
+        self._require_admin()
+        return super().list(request, *args, **kwargs)
+
+    # ---------- CREATE ----------
     def create(self, request, *args, **kwargs):
-        return Response(
-            {'error': 'Staff creation is via Django admin only (Phase 4C).'},
-            status=status.HTTP_405_METHOD_NOT_ALLOWED,
+        self._require_admin()
+
+        serializer = self.get_serializer(data=request.data, context={'request': request})
+        serializer.is_valid(raise_exception=True)
+        staff = serializer.save()
+
+        log_audit(
+            request, 'create',
+            model_name='Staff',
+            object_id=staff.id,
+            object_repr=f"{staff.staff_id} — {staff.full_name}",
+            changes={
+                'staff_id': staff.staff_id,
+                'employment_type': staff.employment_type,
+                'roles': list(staff.active_roles.values_list('name', flat=True)),
+            },
+            actor=request.user,
         )
 
+        from .serializers import AdminStaffDetailSerializer
+        response_data = AdminStaffDetailSerializer(staff, context={'request': request}).data
+        response_data['temporary_password'] = getattr(staff, '_temp_password', None)
+        return Response(response_data, status=status.HTTP_201_CREATED)
+
+    # ---------- DETAIL ----------
+    def retrieve(self, request, *args, **kwargs):
+        self._require_admin()
+        return super().retrieve(request, *args, **kwargs)
+
+    # ---------- UPDATE ----------
     def update(self, request, *args, **kwargs):
-        if not self._is_admin(request):
-            return Response({'error': 'Admin access required.'}, status=403)
-        instance = self.get_object()
+        self._require_admin()
+        staff = self.get_object()
+
+        try:
+            from .utils import compute_diff
+            changes = compute_diff(staff, request.data)
+        except Exception:
+            changes = {}
+
         response = super().update(request, *args, **kwargs)
+
         log_audit(
             request, 'update',
             model_name='Staff',
-            object_id=instance.id,
-            object_repr=f"{instance.staff_id} — {instance.full_name}",
+            object_id=staff.id,
+            object_repr=f"{staff.staff_id} — {staff.full_name}",
+            changes=changes,
             actor=request.user,
         )
         return response
 
-    def destroy(self, request, *args, **kwargs):
-        if not self._is_admin(request):
-            return Response({'error': 'Admin access required.'}, status=403)
-        instance = self.get_object()
+    def partial_update(self, request, *args, **kwargs):
+        return self.update(request, *args, **kwargs)
 
-        # Soft delete — deactivate instead of hard delete
-        instance.deactivate(
-            by_user=request.user,
-            reason=request.data.get('reason', 'Deactivated by admin'),
-        )
+    # ---------- DEACTIVATE ----------
+    @action(detail=True, methods=['post'])
+    def deactivate(self, request, pk=None):
+        self._require_admin()
+        staff = self.get_object()
+
+        if not staff.is_active:
+            return Response({'error': 'Staff member is already deactivated.'}, status=400)
+
+        reason = request.data.get('reason', '').strip()
+        if len(reason) < 5:
+            return Response(
+                {'error': 'A reason is required (minimum 5 characters).'},
+                status=400,
+            )
+
+        staff.deactivate(by_user=request.user, reason=reason)
 
         log_audit(
-            request, 'delete',
+            request, 'update',
             model_name='Staff',
-            object_id=instance.id,
-            object_repr=f"{instance.staff_id} — {instance.full_name}",
-            changes={'action': 'deactivated'},
+            object_id=staff.id,
+            object_repr=f"{staff.staff_id} — {staff.full_name}",
+            changes={'action': 'deactivated', 'reason': reason},
             actor=request.user,
         )
-        return Response({'message': f'{instance.full_name} has been deactivated.'})
 
+        return Response({'message': f'{staff.full_name} has been deactivated.'})
 
+    # ---------- REACTIVATE ----------
+    @action(detail=True, methods=['post'])
+    def reactivate(self, request, pk=None):
+        self._require_admin()
+        staff = self.get_object()
+
+        if staff.is_active:
+            return Response({'error': 'Staff member is already active.'}, status=400)
+
+        staff.is_active = True
+        staff.deactivated_at = None
+        staff.deactivated_by = None
+        staff.deactivation_reason = None
+        staff.user.is_active = True
+        staff.user.save(update_fields=['is_active'])
+        staff.save(update_fields=[
+            'is_active', 'deactivated_at', 'deactivated_by', 'deactivation_reason',
+        ])
+
+        log_audit(
+            request, 'update',
+            model_name='Staff',
+            object_id=staff.id,
+            object_repr=f"{staff.staff_id} — {staff.full_name}",
+            changes={'action': 'reactivated'},
+            actor=request.user,
+        )
+
+        return Response({'message': f'{staff.full_name} has been reactivated.'})
+
+    # ---------- RESET PASSWORD ----------
+    @action(detail=True, methods=['post'], url_path='reset-password')
+    def reset_password(self, request, pk=None):
+        self._require_admin()
+        staff = self.get_object()
+
+        import secrets
+        import string
+
+        alphabet = string.ascii_letters + string.digits + "!@#$%&*"
+        temp_password = ''.join(secrets.choice(alphabet) for _ in range(12))
+
+        staff.user.set_password(temp_password)
+        staff.user.save()
+
+        staff.must_change_password = True
+        staff.save(update_fields=['must_change_password'])
+
+        log_audit(
+            request, 'password_reset',
+            model_name='Staff',
+            object_id=staff.id,
+            object_repr=f"{staff.staff_id} — {staff.full_name}",
+            actor=request.user,
+        )
+
+        return Response({
+            'message': f'Password reset for {staff.full_name}.',
+            'temporary_password': temp_password,
+        })
+
+    # ---------- FORCE LOGOUT ----------
+    @action(detail=True, methods=['post'], url_path='force-logout')
+    def force_logout(self, request, pk=None):
+        self._require_admin()
+        staff = self.get_object()
+
+        log_audit(
+            request, 'force_logout',
+            model_name='Staff',
+            object_id=staff.id,
+            object_repr=f"{staff.staff_id} — {staff.full_name}",
+            actor=request.user,
+        )
+
+        # Full enforcement comes in Phase 4H (JWT blacklist)
+        return Response({
+            'message': f'Logout signal sent for {staff.full_name}. (Full enforcement in a later phase.)',
+        })
+
+    # ---------- ASSIGN ROLE ----------
+    @action(detail=True, methods=['post'], url_path='assign-role')
+    def assign_role(self, request, pk=None):
+        self._require_admin()
+        staff = self.get_object()
+
+        role_id = request.data.get('role_id')
+        if not role_id:
+            return Response({'error': 'role_id is required.'}, status=400)
+
+        try:
+            role = StaffRole.objects.get(id=role_id, is_active=True)
+        except StaffRole.DoesNotExist:
+            return Response({'error': 'Role not found.'}, status=404)
+
+        if StaffRoleAssignment.objects.filter(staff=staff, role=role, is_active=True).exists():
+            return Response({'error': f'{staff.full_name} already has the {role.name} role.'}, status=400)
+
+        with transaction.atomic():
+            StaffRoleAssignment.objects.create(
+                staff=staff,
+                role=role,
+                assigned_by=request.user,
+            )
+            if role.requires_mfa and not staff.mfa_required:
+                staff.mfa_required = True
+                staff.save(update_fields=['mfa_required'])
+
+        log_audit(
+            request, 'role_assign',
+            model_name='Staff',
+            object_id=staff.id,
+            object_repr=f"{staff.staff_id} ← {role.name}",
+            actor=request.user,
+        )
+
+        from .serializers import AdminStaffDetailSerializer
+        return Response(
+            AdminStaffDetailSerializer(staff, context={'request': request}).data,
+            status=201,
+        )
+
+    # ---------- REMOVE ROLE ----------
+    @action(detail=True, methods=['post'], url_path='remove-role')
+    def remove_role(self, request, pk=None):
+        self._require_admin()
+        staff = self.get_object()
+
+        role_id = request.data.get('role_id')
+        if not role_id:
+            return Response({'error': 'role_id is required.'}, status=400)
+
+        try:
+            role = StaffRole.objects.get(id=role_id)
+        except StaffRole.DoesNotExist:
+            return Response({'error': 'Role not found.'}, status=404)
+
+        assignment = StaffRoleAssignment.objects.filter(
+            staff=staff, role=role, is_active=True
+        ).first()
+
+        if not assignment:
+            return Response({'error': 'This role is not currently assigned.'}, status=400)
+
+        # Prevent removing the last admin role from the last admin
+        if role.slug == 'admin':
+            remaining_admins = Staff.objects.filter(
+                role_assignments__role__slug='admin',
+                role_assignments__is_active=True,
+                is_active=True,
+            ).exclude(id=staff.id).distinct().count()
+            if remaining_admins == 0:
+                return Response(
+                    {'error': 'Cannot remove the last admin. Assign another admin first.'},
+                    status=400,
+                )
+
+        assignment.is_active = False
+        assignment.save(update_fields=['is_active'])
+
+        log_audit(
+            request, 'role_revoke',
+            model_name='Staff',
+            object_id=staff.id,
+            object_repr=f"{staff.staff_id} ⊘ {role.name}",
+            actor=request.user,
+        )
+
+        from .serializers import AdminStaffDetailSerializer
+        return Response(
+            AdminStaffDetailSerializer(staff, context={'request': request}).data,
+        )
+        
+        
+        
 # ============================================================
 # ADMIN: ROLE ASSIGNMENT VIEWSET
 # ============================================================
