@@ -1,21 +1,27 @@
 """
 URL configuration for the students app.
 """
-from django.urls import path
+from django.urls import path, include
+from rest_framework.routers import DefaultRouter
+
 from . import views
 
 app_name = 'students'
 
+# Admin router (only registered once, at the bottom)
+router = DefaultRouter()
+router.register(r'admin', views.AdminStudentViewSet, basename='admin-student')
+
 urlpatterns = [
     # ============================================================
-    # Authentication
+    # Student Authentication
     # ============================================================
     path('auth/login/', views.StudentLoginView.as_view(), name='student-login'),
     path('auth/change-password/', views.StudentChangePasswordView.as_view(), name='student-change-password'),
     path('auth/me/', views.StudentMeView.as_view(), name='student-me'),
 
     # ============================================================
-    # Student Data
+    # Student Portal Data (self-scoped)
     # ============================================================
     path('me/grades/', views.MyGradesView.as_view(), name='my-grades'),
     path('me/grades/report-card/', views.MyReportCardView.as_view(), name='my-report-card'),
@@ -26,4 +32,10 @@ urlpatterns = [
     path('me/library/', views.MyLibraryView.as_view(), name='my-library'),
     path('me/clubs/', views.MyClubsView.as_view(), name='my-clubs'),
     path('me/sports/', views.MySportsView.as_view(), name='my-sports'),
+
+    # ============================================================
+    # Admin CRUD (registered last to avoid path collisions)
+    # Provides: /api/v1/students/admin/, /api/v1/students/admin/{id}/, etc.
+    # ============================================================
+    path('', include(router.urls)),
 ]

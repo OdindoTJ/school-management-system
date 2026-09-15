@@ -165,3 +165,25 @@ class AcademicTermViewSet(viewsets.ReadOnlyModelViewSet):
     def get_serializer_class(self):
         from apps.classes.serializers import AcademicTermSerializer
         return AcademicTermSerializer
+# ============================================================
+# CLASSES (public reference data for dropdowns)
+# ============================================================
+
+class ClassViewSet(viewsets.ReadOnlyModelViewSet):
+    """
+    Public endpoint: list active classes for dropdowns.
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        from apps.classes.models import Class
+        qs = Class.objects.filter(is_active=True).select_related('class_teacher')
+        # Optional filter by academic year
+        year = self.request.query_params.get('year')
+        if year:
+            qs = qs.filter(academic_year=year)
+        return qs.order_by('-academic_year', 'name')
+
+    def get_serializer_class(self):
+        from apps.classes.serializers import ClassSerializer
+        return ClassSerializer

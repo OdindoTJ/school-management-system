@@ -32,9 +32,11 @@ CORS_ALLOWED_ORIGINS = [
     'http://localhost:5173',   # Public website
     'http://localhost:5174',   # Student portal  
     'http://localhost:5175',   # Parent portal 
+    'http://localhost:5176',  # Staff portal
     os.getenv('PUBLIC_FRONTEND_URL', 'http://localhost:5173'),
     os.getenv('STUDENT_FRONTEND_URL', 'http://localhost:5174'),
     os.getenv('PARENT_FRONTEND_URL', 'http://localhost:5175'),
+    os.getenv('STAFF_FRONTEND_URL', 'http://localhost:5176'),
 ]
 
 CORS_ALLOW_CREDENTIALS = True
@@ -80,6 +82,7 @@ INSTALLED_APPS = [
     'apps.grades.apps.GradesConfig',
     'apps.fees.apps.FeesConfig',
     'apps.parents.apps.ParentsConfig',
+    'apps.staff.apps.StaffConfig', 
 ]
 
 MIDDLEWARE = [
@@ -92,6 +95,8 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'axes.middleware.AxesMiddleware', 
+    'apps.staff.middleware.AuditWriteMiddleware', 
+    'apps.staff.middleware.StaffNoIndexMiddleware',
 ]
 AUTHENTICATION_BACKENDS = [
     'axes.backends.AxesStandaloneBackend',  # Must be first for django-axes to work
@@ -257,3 +262,21 @@ REST_FRAMEWORK_THROTTLE_RATES = {
     'parent_password_change': '5/hour', # Password change attempts
     'parent_email_change': '3/hour',    # Email change requests
 }
+
+# ============================================================================
+# STAFF PORTAL SECURITY
+# ============================================================================
+# Staff portal is intentionally hidden from search engines and crawlers.
+# These headers apply to all responses (frontend sets its own noindex tags).
+
+# Prevent framing of the entire app (protects against clickjacking)
+X_FRAME_OPTIONS = 'DENY'
+
+# Prevent MIME-type sniffing
+SECURE_CONTENT_TYPE_NOSNIFF = True
+
+# Referrer policy — don't leak URLs to external sites
+SECURE_REFERRER_POLICY = 'strict-origin-when-cross-origin'
+
+# Cross-Origin policies
+SECURE_CROSS_ORIGIN_OPENER_POLICY = 'same-origin'

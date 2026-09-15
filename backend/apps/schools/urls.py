@@ -17,6 +17,7 @@ router.register(r'school-life-categories', views.SchoolLifeCategoryViewSet)
 router.register(r'school-life-items', views.SchoolLifeItemViewSet)
 router.register(r'news', views.NewsViewSet)
 router.register(r'events', views.EventViewSet)
+router.register(r'classes', views.ClassViewSet, basename='class')
 router.register(r'contact', views.ContactMessageViewSet, basename='contact')
 
 urlpatterns = [

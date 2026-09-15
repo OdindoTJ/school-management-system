@@ -2,11 +2,14 @@
 Serializers for the students app.
 """
 from django.contrib.auth.models import User
+from django.db import transaction
+from django.utils import timezone
 from rest_framework import serializers
+
 from .models import (
     Student, Attendance, Assignment,
     LibraryRecord, Club, ClubMembership,
-    Sport, SportMembership
+    Sport, SportMembership,
 )
 
 
@@ -250,3 +253,185 @@ class SportMembershipSerializer(serializers.ModelSerializer):
     class Meta:
         model = SportMembership
         fields = ['id', 'sport', 'joined_date', 'is_active']
+
+
+# ============================================================
+# ADMIN — STUDENT MANAGEMENT SERIALIZERS
+# ============================================================
+
+class AdminStudentListSerializer(serializers.ModelSerializer):
+    """
+    Compact student info for the admin list view.
+    """
+    full_name = serializers.CharField(read_only=True)
+    class_name = serializers.SerializerMethodField()
+    parent_count = serializers.SerializerMethodField()
+    photo_url = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Student
+        fields = [
+            'id', 'admission_number', 'first_name', 'last_name', 'full_name',
+            'gender', 'date_of_birth',
+            'school_class', 'class_name',
+            'photo_url',
+            'parent_count',
+            'must_change_password',
+            'is_active',
+            'enrollment_date',
+        ]
+
+    def get_class_name(self, obj):
+        if obj.school_class:
+            return f"{obj.school_class.name} ({obj.school_class.academic_year})"
+        return None
+
+    def get_parent_count(self, obj):
+        return obj.parent_links.filter(is_active=True).count()
+
+    def get_photo_url(self, obj):
+        if obj.photo:
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(obj.photo.url)
+            return obj.photo.url
+        return None
+
+
+class AdminStudentDetailSerializer(serializers.ModelSerializer):
+    """
+    Full student info for admin detail/edit views.
+    """
+    full_name = serializers.CharField(read_only=True)
+    class_name = serializers.SerializerMethodField()
+    photo_url = serializers.SerializerMethodField()
+    username = serializers.CharField(source='user.username', read_only=True)
+    user_email = serializers.CharField(source='user.email', read_only=True)
+    user_is_active = serializers.BooleanField(source='user.is_active', read_only=True)
+
+    class Meta:
+        model = Student
+        fields = [
+            'id', 'admission_number',
+            'first_name', 'last_name', 'full_name',
+            'date_of_birth', 'gender',
+            'school_class', 'class_name',
+            'address', 'photo', 'photo_url',
+            'enrollment_date',
+            'must_change_password',
+            'is_active', 'user_is_active',
+            'username', 'user_email',
+            'created_at', 'updated_at',
+        ]
+        read_only_fields = ['id', 'created_at', 'updated_at', 'username', 'user_email', 'user_is_active']
+
+    def get_class_name(self, obj):
+        if obj.school_class:
+            return f"{obj.school_class.name} ({obj.school_class.academic_year})"
+        return None
+
+    def get_photo_url(self, obj):
+        if obj.photo:
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(obj.photo.url)
+            return obj.photo.url
+        return None
+
+
+class AdminStudentCreateSerializer(serializers.Serializer):
+    """
+    Creates a Django User + Student in one atomic transaction.
+    Returns the generated temporary password to the admin ONCE.
+    """
+    # Student fields
+    first_name = serializers.CharField(max_length=100)
+    last_name = serializers.CharField(max_length=100)
+    admission_number = serializers.CharField(max_length=50)
+    date_of_birth = serializers.DateField()
+    gender = serializers.ChoiceField(choices=Student.GENDER_CHOICES)
+    school_class = serializers.PrimaryKeyRelatedField(
+        # Placeholder queryset at class-definition time (DRF requires a non-None
+        # queryset here or it raises AssertionError on import). The real
+        # queryset — scoped to the classes app — is set below in __init__,
+        # once the app registry is ready. This avoids a circular import
+        # between apps.students and apps.classes at module load time.
+        queryset=Student.objects.none(),
+        allow_null=True,
+        required=False,
+    )
+    address = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    enrollment_date = serializers.DateField(required=False)
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        from apps.classes.models import Class
+        self.fields['school_class'].queryset = Class.objects.filter(is_active=True)
+
+    def validate_admission_number(self, value):
+        from .models import Student
+        if Student.objects.filter(admission_number=value.strip()).exists():
+            raise serializers.ValidationError("A student with this admission number already exists.")
+        return value.strip().upper()
+
+    def create(self, validated_data):
+        from .models import Student
+        from django.contrib.auth.models import User
+        import secrets
+        import string
+
+        # Generate temp password
+        alphabet = string.ascii_letters + string.digits + "!@#$%&*"
+        temp_password = ''.join(secrets.choice(alphabet) for _ in range(12))
+
+        admission = validated_data['admission_number']
+        username = admission.lower().replace(' ', '')
+
+        # Ensure username uniqueness (safety net)
+        if User.objects.filter(username=username).exists():
+            raise serializers.ValidationError({
+                'admission_number': 'This admission number maps to an existing user.'
+            })
+
+        with transaction.atomic():
+            user = User.objects.create_user(
+                username=username,
+                email='',  # Students don't have email by default
+                password=temp_password,
+                first_name=validated_data['first_name'],
+                last_name=validated_data['last_name'],
+            )
+            user.is_active = True
+            user.save(update_fields=['is_active'])
+
+            student = Student.objects.create(
+                user=user,
+                first_name=validated_data['first_name'],
+                last_name=validated_data['last_name'],
+                admission_number=admission,
+                date_of_birth=validated_data['date_of_birth'],
+                gender=validated_data['gender'],
+                school_class=validated_data.get('school_class'),
+                address=validated_data.get('address', ''),
+                enrollment_date=validated_data.get('enrollment_date') or timezone.now().date(),
+                must_change_password=True,
+            )
+
+        # Attach the plain temp password to the instance for the response
+        student._temp_password = temp_password
+        return student
+
+
+class AdminStudentUpdateSerializer(serializers.ModelSerializer):
+    """
+    Update student record (no user/password changes here).
+    """
+    class Meta:
+        model = Student
+        fields = [
+            'first_name', 'last_name',
+            'date_of_birth', 'gender',
+            'school_class', 'address',
+            'photo', 'enrollment_date',
+            'is_active',
+        ]
