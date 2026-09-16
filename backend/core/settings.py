@@ -83,6 +83,7 @@ INSTALLED_APPS = [
     'apps.fees.apps.FeesConfig',
     'apps.parents.apps.ParentsConfig',
     'apps.staff.apps.StaffConfig', 
+    'apps.library.apps.LibraryConfig',
 ]
 
 MIDDLEWARE = [

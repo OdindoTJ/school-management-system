@@ -13,9 +13,9 @@ export const studentAPI = {
   getAttendanceSummary: (params = {}) =>
     apiClient.get('/students/me/attendance/summary/', { params }),
   getAssignments: (params = {}) => apiClient.get('/students/me/assignments/', { params }),
-  getLibrary: () => apiClient.get('/students/me/library/'),
+  getLibrary: () => apiClient.get('/library/loans/my-loans/'),   // ← FIXED
   getClubs: () => apiClient.get('/students/me/clubs/'),
   getSports: () => apiClient.get('/students/me/sports/'),
   getAnnouncements: () => apiClient.get('/schools/announcements/'),
-  getTerms: () => apiClient.get('/schools/academic-terms/'),   // NEW
+  getTerms: () => apiClient.get('/schools/academic-terms/'),
 };
