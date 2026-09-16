@@ -9,6 +9,16 @@ import StaffDetail from './pages/staff/Detail';
 import StaffNew from './pages/staff/New';
 import StaffEdit from './pages/staff/Edit';
 
+// Library
+import LibraryDashboard from './pages/library/Dashboard';
+import Loans from './pages/library/Loans';
+import IssueBook from './pages/library/IssueBook';
+import ReturnBook from './pages/library/ReturnBook';
+import Overdue from './pages/library/Overdue';
+import Books from './pages/library/Books';
+import BookNew from './pages/library/BookNew';
+import Borrowers from './pages/library/Borrowers';
+
 import Login from './pages/Login';
 import ChangePassword from './pages/ChangePassword';
 import Dashboard from './pages/Dashboard';
@@ -54,11 +64,13 @@ const App = () => {
             <Route path="/students/:id" element={<StudentDetail />} />
             <Route path="/students/:id/edit" element={<StudentEdit />} />
 
-            {/* Other routes (placeholders for now) */}
+            {/* Staff Management */}
             <Route path="/staff" element={<StaffList />} />
             <Route path="/staff/new" element={<StaffNew />} />
             <Route path="/staff/:id" element={<StaffDetail />} />
             <Route path="/staff/:id/edit" element={<StaffEdit />} />
+
+            {/* Other routes (placeholders for now) */}
             <Route path="/classes" element={<Placeholder title="Classes" />} />
             <Route path="/subjects" element={<Placeholder title="Subjects" />} />
             <Route path="/parents" element={<Placeholder title="Parents" />} />
@@ -76,11 +88,15 @@ const App = () => {
             <Route path="/announcements" element={<Placeholder title="Announcements" />} />
             <Route path="/announcements/new" element={<Placeholder title="New Announcement" />} />
 
-            <Route path="/library" element={<Placeholder title="Library" />} />
-            <Route path="/library/new" element={<Placeholder title="Log Book Loan" />} />
-            <Route path="/library/return" element={<Placeholder title="Log Book Return" />} />
-            <Route path="/books" element={<Placeholder title="Books" />} />
-            <Route path="/borrowers" element={<Placeholder title="Borrowers" />} />
+            {/* Library */}
+            <Route path="/library" element={<LibraryDashboard />} />
+            <Route path="/library/loans" element={<Loans />} />
+            <Route path="/library/new" element={<IssueBook />} />
+            <Route path="/library/return" element={<ReturnBook />} />
+            <Route path="/library/overdue" element={<Overdue />} />
+            <Route path="/books" element={<Books />} />
+            <Route path="/books/new" element={<BookNew />} />
+            <Route path="/borrowers" element={<Borrowers />} />
 
             <Route path="/activities" element={<Placeholder title="Clubs & Sports" />} />
 

@@ -27,17 +27,20 @@ ALLOWED_HOSTS = [
     '.supabase.co',
 ]
 
-# CORS Configuration
+   # CORS Configuration
 CORS_ALLOWED_ORIGINS = [
     'http://localhost:5173',   # Public website
-    'http://localhost:5174',   # Student portal  
-    'http://localhost:5175',   # Parent portal 
-    'http://localhost:5176',  # Staff portal
-    os.getenv('PUBLIC_FRONTEND_URL', 'http://localhost:5173'),
-    os.getenv('STUDENT_FRONTEND_URL', 'http://localhost:5174'),
-    os.getenv('PARENT_FRONTEND_URL', 'http://localhost:5175'),
-    os.getenv('STAFF_FRONTEND_URL', 'http://localhost:5176'),
+    'http://localhost:5174',   # Student portal
+    'http://localhost:5175',   # Parent portal
+    'http://localhost:5176',   # Staff portal (default)
+    'http://localhost:5177',   # Staff portal (fallback)
+    'http://127.0.0.1:5173',
+    'http://127.0.0.1:5174',
+    'http://127.0.0.1:5175',
+    'http://127.0.0.1:5176',
+    'http://127.0.0.1:5177',
 ]
+
 
 CORS_ALLOW_CREDENTIALS = True
 

@@ -85,7 +85,9 @@ class StudentLoginView(APIView):
                 status=status.HTTP_401_UNAUTHORIZED
             )
 
-        user = authenticate(username=student.user.username, password=password)
+        # django-axes requires `request` to be passed through so it can
+        # track failed login attempts per-IP/user for lockout purposes.
+        user = authenticate(request, username=student.user.username, password=password)
         if user is None:
             return Response(
                 {'error': 'Invalid admission number or password.'},

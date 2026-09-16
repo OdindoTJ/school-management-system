@@ -25,4 +25,8 @@ export const studentsAPI = {
 
   // Reference data
   getClasses: () => apiClient.get('/schools/classes/'),
+  getLibrary: () => apiClient.get('/library/my-loans/'),
+  
+ 
 };
+ export const studentAPI = studentsAPI;

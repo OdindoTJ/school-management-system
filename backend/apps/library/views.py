@@ -3,6 +3,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.utils import timezone
 from rest_framework.permissions import IsAuthenticated
+from datetime import timedelta
 
 from .models import Category, Book, Borrower, Loan, Reservation, Fine
 from .serializers import (
@@ -35,15 +36,21 @@ class BorrowerViewSet(viewsets.ModelViewSet):
 class LoanViewSet(viewsets.ModelViewSet):
     queryset = Loan.objects.all()
     serializer_class = LoanSerializer
+    permission_classes = [IsAuthenticated]
 
     def perform_create(self, serializer):
-        loan = serializer.save()
+        due_date = timezone.now().date() + timedelta(days=7)
+        loan = serializer.save(due_date=due_date)
         loan.book.is_available = False
         loan.book.save()
 
     @action(detail=True, methods=['post'])
     def return_book(self, request, pk=None):
         loan = self.get_object()
+
+        if loan.status == 'RETURNED':
+            return Response({'error': 'This book has already been returned'}, status=400)
+
         loan.returned_date = timezone.now().date()
         loan.status = 'RETURNED'
         loan.save()
@@ -51,6 +58,7 @@ class LoanViewSet(viewsets.ModelViewSet):
         loan.book.is_available = True
         loan.book.save()
 
+        days_late = 0
         if loan.returned_date > loan.due_date:
             days_late = (loan.returned_date - loan.due_date).days
             fine_amount = days_late * 10
@@ -58,10 +66,29 @@ class LoanViewSet(viewsets.ModelViewSet):
                 loan=loan,
                 fine_type='OVERDUE',
                 amount=fine_amount,
-                reason=f'{days_late} days overdue'
+                reason=f'{days_late} day(s) overdue'
             )
 
-        return Response({'status': 'returned'})
+        return Response({
+            'status': 'returned',
+            'message': 'Book returned successfully',
+            'days_late': days_late,
+        })
+
+    @action(detail=True, methods=['post'])
+    def renew(self, request, pk=None):
+        loan = self.get_object()
+
+        if loan.status != 'BORROWED':
+            return Response({'error': 'Only active loans can be renewed'}, status=400)
+
+        if loan.due_date < timezone.now().date():
+            return Response({'error': 'Cannot renew an overdue book.'}, status=400)
+
+        loan.due_date = loan.due_date + timedelta(days=7)
+        loan.save()
+
+        return Response({'status': 'renewed', 'message': f'Loan extended to {loan.due_date}'})
 
     @action(detail=False, methods=['get'])
     def overdue(self, request):
@@ -74,7 +101,6 @@ class LoanViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated], url_path='my-loans')
     def my_loans(self, request):
-        """Get loans for the currently logged-in user"""
         user = request.user
 
         borrower = None
